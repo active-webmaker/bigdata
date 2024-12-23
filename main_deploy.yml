@@ -1,0 +1,11 @@
+# main_deploy.yml
+---
+- hosts: all
+  become: true
+  tasks:
+    - import_playbook: apt_deploy.yml
+    - import_playbook: nginx_deploy.yml
+    - import_playbook: mysql_deploy.yml
+    - import_playbook: django_deploy.yml
+    - import_playbook: bigtop_deploy.yml
+    - import_playbook: airflow_deploy.yml

@@ -3,8 +3,9 @@ pipeline {
     environment {
         // 환경 변수 설정
         DOCKER_TAG = "latest"
-        ANSIBLE_PLAYBOOK = "deploy.yml"
-        DOCKER_FOLDERS = ["Nginx", "django", "Airflow"]
+        MAIN_PLAYBOOK = "main_deploy.yml"
+        SEARCH_PLAYBOOK = "deploy.yml"
+        DOCKER_FOLDERS = ["Nginx", "Django", "Airflow", "BigTop"]
     }
     stages {
         stage('Checkout') {
@@ -31,7 +32,7 @@ pipeline {
             steps {
                 script {
                     // Ansible Playbook의 변경 사항 확인
-                    def ansiblePlaybookChanged = sh(script: "git diff --name-only origin/main | grep ${ANSIBLE_PLAYBOOK} || true", returnStatus: true) == 0
+                    def ansiblePlaybookChanged = sh(script: "git diff --name-only origin/main | grep ${env.SEARCH_PLAYBOOK} || true", returnStatus: true) == 0
                     
                     // 변경 사항 여부를 로깅
                     echo "Ansible Playbook changed: ${ansiblePlaybookChanged}"
@@ -62,7 +63,7 @@ pipeline {
                     }
                     // 앤서블 플레이북 배포
                     try {
-                        sh "ansible-playbook -i inventory ${ANSIBLE_PLAYBOOK}"
+                        sh "ansible-playbook ${env.MAIN_PLAYBOOK}"
                     } catch (Exception e) {
                         error "Ansible deployment failed: ${e.getMessage()}"
                     }

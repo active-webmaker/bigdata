@@ -1,0 +1,8 @@
+{
+    "yaml.schemas": {
+        "https://raw.githubusercontent.com/ansible/ansible-lint/main/src/ansiblelint/schemas/ansible.json#/$defs/playbook": [
+            "file:///d%3A/special/coding/git/bigdata/bigdata/deploy.yml",
+            "file:///d%3A/special/coding/git/bigdata/bigdata/nginx_deploy.yml"
+        ]
+    }
+}

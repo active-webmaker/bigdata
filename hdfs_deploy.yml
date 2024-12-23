@@ -1,0 +1,118 @@
+---
+- name: hdfs deploy apply 
+  hosts: 
+    - 158.247.252.37
+  become: yes
+  vars:
+    hdfs_app_name: hdfs
+    hdfs_storage_name: hdfs-storage-class
+    hdfs_replicas: 3
+    hdfs_image_name: bigtop:latest
+
+
+  tasks:
+    - name: Create StorageClass for hdfs
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: storage.k8s.io/v1
+          kind: StorageClass
+          metadata:
+            name: "{{ hdfs_storage_name }}"
+          provisioner: kubernetes.io/no-provisioner
+          volumeBindingMode: WaitForFirstConsumer
+
+
+    - name: Deploy hdfs StatefulSet
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: StatefulSet
+          metadata:
+            name: "{{ hdfs_app_name }}"
+          spec:
+            serviceName: "{{ hdfs_app_name }}"
+            replicas: "{{ hdfs_replicas }}"
+            selector:
+              matchLabels:
+                app: "{{ hdfs_app_name }}"
+            template:
+              metadata:
+                labels:
+                  app: "{{ hdfs_app_name }}"
+              spec:
+                initcontainers:
+                - name: "{{ hdfs_app_name }}"
+                  image: "{{ hdfs_image_name }}"
+                  command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    if [[ "$(hostname)" == "{{ hdfs_app_name }}-0" ]]; then
+                        echo "Formatting NameNode..."
+                        hdfs namenode -format -nonInteractive || echo "Already formatted"
+                    fi
+                containers:
+                - name: "{{ hdfs_app_name }}"
+                  image: "{{ hdfs_image_name }}"
+                  command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    if [[ "$(hostname)" == "{{ hdfs_app_name }}-0" ]]; then
+                        echo "Starting NameNode"
+                        hdfs namenode
+                    else
+                        echo "Starting DataNode"
+                        hdfs datanode
+                  ports:
+                  - containerPort: 50070  # NameNode Web UI
+                  - containerPort: 50075  # DataNode
+                volumeMounts:
+                - name: hdfs-storage
+                  mountPath: /data/hdfs
+            volumeClaimTemplates:
+            - metadata:
+                name: hdfs-storage
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: "{{ hdfs_storage_size }}"
+                storageClassName: "{{ hdfs_storage_name }}"
+
+
+    - name: Expose NameNode Service
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: hdfs-namenode-service
+          spec:
+            selector:
+              app: "{{ hdfs_app_name }}"
+            ports:
+              - protocol: TCP
+                port: 50070
+                targetPort: 50070
+            type: NodePort
+
+    - name: Expose DataNode Service
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: hdfs-datanode-service
+          spec:
+            selector:
+              app: "{{ hdfs_app_name }}"
+            ports:
+              - protocol: TCP
+                port: 50075
+                targetPort: 50075
+            type: ClusterIP

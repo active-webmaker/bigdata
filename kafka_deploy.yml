@@ -1,0 +1,85 @@
+---
+- name: kafka deploy apply 
+  hosts: 
+    - 158.247.252.37
+  become: yes
+  vars:
+    kafka_app_name: kafka
+    kafka_storage_name: kafka-storage-class
+    kafka_replicas: 2
+    kafka_image_name: bigtop:latest
+
+
+  tasks:
+    - name: Create StorageClass for kafka
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: storage.k8s.io/v1
+          kind: StorageClass
+          metadata:
+            name: "{{ kafka_storage_name }}"
+          provisioner: kubernetes.io/no-provisioner
+          volumeBindingMode: WaitForFirstConsumer
+
+
+    - name: Deploy Kafka StatefulSet
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: StatefulSet
+          metadata:
+            name: "{{ kafka_app_name }}"
+          spec:
+            serviceName: "{{ kafka_app_name }}"
+            replicas: "{{ kafka_replicas }}"
+            selector:
+              matchLabels:
+                app: "{{ kafka_app_name }}"
+            template:
+              metadata:
+                labels:
+                  app: "{{ kafka_app_name }}"
+              spec:
+                containers:
+                - name: "{{ kafka_app_name }}"
+                  image: "{{ kafka_image_name }}"
+                  ports:
+                  - containerPort: 9092
+                    name: broker
+                  env:
+                  - name: KAFKA_CFG_ZOOKEEPER_CONNECT
+                    value: "zookeeper:2181"
+                  - name: ALLOW_PLAINTEXT_LISTENER
+                    value: "yes"
+                  volumeMounts:
+                  - name: kafka-storage
+                    mountPath: /bitnami/kafka
+            volumeClaimTemplates:
+            - metadata:
+                name: kafka-storage
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: 1Gi
+                storageClassName: "{{ kafka_storage_name }}"
+
+
+    - name: Expose the StatefulSet as a service
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: kafka-service
+          spec:
+            selector:
+              app: "{{ kafka_app_name }}"
+            ports:
+              - protocol: TCP
+                port: 9092
+                targetPort: 9092
+            type: LoadBalancer

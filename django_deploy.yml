@@ -1,0 +1,53 @@
+---
+- name: django deploy apply 
+  hosts: 
+    - 192.168.55.0
+  become: yes
+  vars:
+    django_app_name: django
+    django_replicas: 3
+    django_image_name: django:latest
+
+  tasks:
+    - name: Create or update Kubernetes Deployment
+      k8s:
+        state: present
+        definition: 
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: django-deployment
+            labels:
+              app: {{ django_app_name }}
+          spec:
+            replicas: {{ django_replicas }}
+            selector:
+              matchLabels:
+                app: {{ django_app_name }}
+            template:
+              metadata:
+                labels:
+                  app: {{ django_app_name }}
+              spec:
+                containers:
+                - name: {{ django_app_name }}
+                  image: {{ django_image_name }}
+                  ports:
+                  - containerPort: 11000
+
+
+    - name: Expose the deployment as a service
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: django-service
+          spec:
+            selector:
+              app: {{ django_app_name }}
+            ports:
+              - protocol: TCP
+                port: 11000
+                targetPort: 11000

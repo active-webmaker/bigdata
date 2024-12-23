@@ -1,0 +1,133 @@
+---
+- name: mysql deploy apply 
+  hosts: 
+    - 158.247.252.37
+  become: yes
+  vars:
+    mysql_app_name: mysql
+    mysql_storage_name: mysql-storage-class
+    mysql_replicas: 2
+    mysql_image_name: mysql:latest
+
+
+  tasks:
+    - name: Create StorageClass for MySQL
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: storage.k8s.io/v1
+          kind: StorageClass
+          metadata:
+            name: "{{ mysql_storage_name }}"
+          provisioner: kubernetes.io/no-provisioner
+          volumeBindingMode: WaitForFirstConsumer
+
+
+    - name: Create ConfigMap for MySQL initialization
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: mysql-init-scripts
+          data:
+            init-master-slave.sh: |
+              #!/bin/bash
+              set -e
+              
+              if [[ "$(hostname)" == "mysql-0" ]]; then
+                  echo "Initializing as Master"
+                  mysql -u root -p"${mysql_root_password}" -e "CREATE USER 'replica'@'%' IDENTIFIED BY '${replication_password}';"
+                  mysql -u root -p"${mysql_root_password}" -e "GRANT REPLICATION SLAVE ON *.* TO 'replica'@'%';"
+                  mysql -u root -p"${mysql_root_password}" -e "FLUSH PRIVILEGES;"
+              else
+                  echo "Initializing as Slave"
+                  until mysql -h mysql-0.mysql -u root -p"${mysql_root_password}" -e "SELECT 1"; do
+                    echo "Waiting for master to be ready..."
+                    sleep 5
+                  done
+                  mysql -u root -p"${mysql_root_password}" -e "CHANGE MASTER TO MASTER_HOST='mysql-0.mysql', MASTER_USER='replica', MASTER_PASSWORD='${replication_password}', MASTER_LOG_FILE='mysql-bin.000001', MASTER_LOG_POS=0;"
+                  mysql -u root -p"${mysql_root_password}" -e "START SLAVE;"
+              fi
+
+
+    - name: Deploy MySQL StatefulSet with Init Container
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: StatefulSet
+          metadata:
+            name: "{{ mysql_app_name }}"
+          spec:
+            serviceName: "{{ mysql_app_name }}"
+            replicas: "{{ mysql_replicas }}"
+            selector:
+              matchLabels:
+                app: "{{ mysql_app_name }}"
+            template:
+              metadata:
+                labels:
+                  app: "{{ mysql_app_name }}"
+              spec:
+                containers:
+                - name: "{{ mysql_app_name }}"
+                  image: "{{ mysql_image_name }}"
+                  ports:
+                  - containerPort: 3306
+                    name: "{{ mysql_app_name }}"
+                  env:
+                  - name: mysql_root_password
+                    value: "{{ mysql_root_password }}"
+                  - name: replication_password
+                    value: "{{ replication_password }}"
+                  lifecycle:
+                    postStart:
+                      exec:
+                        command: ["/bin/bash", "/scripts/init-master-slave.sh"]
+                  volumeMounts:
+                  - name: mysql-storage
+                    mountPath: /var/lib/mysql
+                  - name: init-scripts
+                    mountPath: /scripts
+                initContainers:
+                - name: init-mysql
+                  image: busybox
+                  command: ["sh", "-c", "cp /config/init-master-slave.sh /scripts/init-master-slave.sh && chmod +x /scripts/init-master-slave.sh"]
+                  volumeMounts:
+                  - name: init-scripts
+                    mountPath: /scripts
+                  - name: config-volume
+                    mountPath: /config
+                volumes:
+                - name: config-volume
+                  configMap:
+                    name: mysql-init-scripts
+            volumeClaimTemplates:
+            - metadata:
+                name: mysql-storage
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: 2Gi
+                storageClassName: "{{ kafka_storage_name }}"
+
+
+    - name: Expose the StatefulSet as a service
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ mysql_app_name }}"
+          spec:
+            selector:
+              app: "{{ mysql_app_name }}"
+            ports:
+              - protocol: TCP
+                port: 3306
+                targetPort: 3306
+            type: LoadBalancer

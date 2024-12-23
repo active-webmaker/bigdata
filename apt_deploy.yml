@@ -1,0 +1,72 @@
+---
+- name: apt App Install
+  hosts: 
+    - 192.168.55.0
+    - 192.168.55.1
+    - 192.168.55.2
+  become: yes
+  vars:
+    Java_version: 17.0.13
+    Docker_version: 27.4.1
+    Kubelet_version: 1.32
+    Kubeadm_version: 1.32
+    Kubectl_version: 1.32
+
+  tasks:
+    - name: Install Java
+      apt:
+        name: "openjdk-17-jre={{ Java_version }}"
+        state: present
+
+    - name: Install Docker
+      apt:
+        name: "docker.io={{ Docker_version }}"
+        state: present
+
+    - name: Install Kubernetes
+      apt:
+        name:
+          - "kubelet={{ Kubelet_version }}"
+          - "kubeadm={{ Kubeadm_version }}"
+          - "kubectl={{ Kubectl_version }}"
+        state: present
+
+
+
+- name: Kubernetes init
+  hosts: 
+    - 192.168.55.0
+  become: yes
+
+  tasks:
+    - name: Check Kubernetes init excuted
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: kubelet_conf_status
+
+    - name: init Kubernetes master node
+      command: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-cert-extra-sans=192.168.55.0
+      register: kubeadm_init_output
+      when: not kubelet_conf_status.stat.exists
+
+    - name: Copy join command to local file
+      local_action: copy content="{{ kubeadm_init_output.stdout_lines[-1] }}" dest=join_command.sh
+      when: not kubelet_conf_status.stat.exists
+
+
+
+- name: Kubernetes join
+  hosts: 
+    - 192.168.55.1
+    - 192.168.55.2
+  become: yes
+
+  tasks:
+    - name: Check Kubernetes join excuted
+      stat:
+        path: /var/lib/kubelet/config.yaml
+      register: kubelet_conf_yaml_status
+  
+    - name: Join Kubernetes worker node
+      shell: "{{ lookup('file', 'join_command.sh') }}"
+      when: not kubelet_conf_yaml_status.stat.exists
