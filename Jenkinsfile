@@ -31,7 +31,7 @@ pipeline {
 
                     // 변경 사항 여부를 확인
                     if (aptFileChanged || inventoryFileChanged) {
-                        sh "ansible-playbook -i ${env.INVENTORY_FILE}} ${env.APT_PLAYBOOK}"
+                        sh "ansible-playbook -i ${env.INVENTORY_FILE} ${env.APT_PLAYBOOK}"
                     }
                 }
             }
@@ -86,7 +86,7 @@ pipeline {
                     }
                     // 앤서블 플레이북 배포
                     try {
-                        sh "ansible-playbook -i ${env.INVENTORY_FILE}} ${env.MAIN_PLAYBOOK}"
+                        sh "ansible-playbook -i ${env.INVENTORY_FILE} ${env.MAIN_PLAYBOOK}"
                     } catch (Exception e) {
                         error "Ansible deployment failed: ${e.getMessage()}"
                     }
