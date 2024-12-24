@@ -1,0 +1,52 @@
+---
+- name: flask deploy apply 
+  hosts: master
+  become: yes
+  vars:
+    flask_app_name: flask
+    flask_replicas: 3
+    flask_image_name: flask:latest
+
+  tasks:
+    - name: Create or update Kubernetes Deployment
+      k8s:
+        state: present
+        definition: 
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: flask-deployment
+            labels:
+              app: {{ flask_app_name }}
+          spec:
+            replicas: {{ flask_replicas }}
+            selector:
+              matchLabels:
+                app: {{ flask_app_name }}
+            template:
+              metadata:
+                labels:
+                  app: {{ flask_app_name }}
+              spec:
+                containers:
+                - name: {{ flask_app_name }}
+                  image: {{ flask_image_name }}
+                  ports:
+                  - containerPort: 11000
+
+
+    - name: Expose the deployment as a service
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: flask-service
+          spec:
+            selector:
+              app: {{ flask_app_name }}
+            ports:
+              - protocol: TCP
+                port: 11000
+                targetPort: 11000

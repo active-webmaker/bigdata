@@ -7,7 +7,6 @@ pipeline {
         APT_PLAYBOOK = "provisioning_apt.yml"
         INVENTORY_FILE = "inventory.ini"
         SEARCH_PLAYBOOK = "deploy.yml"
-        DOCKER_FOLDERS = ["Nginx", "MySQL", "Flask", "Airflow", "BigTop"]
     }
     stages {
         stage('Checkout') {
@@ -19,9 +18,12 @@ pipeline {
         stage('Detect APT and Inventory File Changes') {
             steps {
                 script {
+                    // 최신 변경 사항 가져오기
+                    sh "git fetch origin main"
+
                     // Dockerfile의 변경 사항 확인
-                    def aptFileChanged = sh(script: "git diff --name-only origin/main | grep ${env.APT_PLAYBOOK} || true", returnStatus: true) == 0
-                    def inventoryFileChanged = sh(script: "git diff --name-only origin/main | grep ${env.INVENTORY_FILE} || true", returnStatus: true) == 0
+                    def aptFileChanged = sh(script: "git diff --name-only FETCH_HEAD | grep ${env.APT_PLAYBOOK} || true", returnStatus: true) == 0
+                    def inventoryFileChanged = sh(script: "git diff --name-only FETCH_HEAD | grep ${env.INVENTORY_FILE} || true", returnStatus: true) == 0
                     
                     // 변경 사항 여부를 로깅
                     echo "apt File changed: ${aptFileChanged}"
@@ -38,7 +40,7 @@ pipeline {
             steps {
                 script {
                     // Dockerfile의 변경 사항 확인
-                    def dockerFileChanged = sh(script: "git diff --name-only origin/main | grep Dockerfile || true", returnStatus: true) == 0
+                    def dockerFileChanged = sh(script: "git diff --name-only FETCH_HEAD | grep Dockerfile || true", returnStatus: true) == 0
                     
                     // 변경 사항 여부를 로깅
                     echo "Dockerfile changed: ${dockerFileChanged}"
@@ -52,7 +54,7 @@ pipeline {
             steps {
                 script {
                     // Ansible Playbook의 변경 사항 확인
-                    def ansiblePlaybookChanged = sh(script: "git diff --name-only origin/main | grep ${env.SEARCH_PLAYBOOK} || true", returnStatus: true) == 0
+                    def ansiblePlaybookChanged = sh(script: "git diff --name-only FETCH_HEAD | grep ${env.SEARCH_PLAYBOOK} || true", returnStatus: true) == 0
                     
                     // 변경 사항 여부를 로깅
                     echo "Ansible Playbook changed: ${ansiblePlaybookChanged}"
@@ -72,8 +74,9 @@ pipeline {
                 script {
                     // 변경사항이 있는 도커파일만 빌드
                     try {
-                        def changedFiles = sh(script: "git diff --name-only origin/main", returnStdout: true).split('\n')
-                        for (folder in env.DOCKER_FOLDERS) {
+                        def DOCKER_FOLDERS = ["Nginx", "MySQL", "Flask", "Airflow", "BigTop"]
+                        def changedFiles = sh(script: "git diff --name-only FETCH_HEAD", returnStdout: true).split('\n')
+                        for (folder in DOCKER_FOLDERS) {
                             if (changedFiles.any { it.contains("${folder}/Dockerfile") }) {
                                 sh "docker build -t ${folder}:${DOCKER_TAG} -f ${folder}/Dockerfile ${folder}"
                             }
@@ -94,6 +97,7 @@ pipeline {
     post {
         always {
             // 항상 빌드 로그 보존
+            sh "echo 'Build logs' > build.log"
             archiveArtifacts artifacts: 'build.log', allowEmptyArchive: true
         }
         success {

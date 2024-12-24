@@ -9,3 +9,4 @@
     - import_playbook: hdfs_deploy.yml
     - import_playbook: spark_deploy.yml
     - import_playbook: airflow_deploy.yml
+    # - import_playbook: flask_deploy.yml
