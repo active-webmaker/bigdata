@@ -78,11 +78,13 @@ pipeline {
                         def changedFiles = sh(script: "git diff --name-only FETCH_HEAD", returnStdout: true).split('\n')
                         for (folder in DOCKER_FOLDERS) {
                             if (changedFiles.any { it.contains("${folder}/Dockerfile") }) {
+                                // 빌드하려는 도커파일을 로깅
+                                echo "Dockfile Build try: ${folder}"
                                 sh "docker build -t ${folder}:${DOCKER_TAG} -f ${folder}/Dockerfile ${folder}"
                             }
                         }
                     } catch (Exception e) {
-                        error "Docker image build failed: ${e.getMessage()}"
+                        error "Docker image ${folder} build failed: ${e.getMessage()}"
                     }
                     // 앤서블 플레이북 배포
                     try {
