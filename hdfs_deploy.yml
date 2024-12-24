@@ -1,7 +1,6 @@
 ---
 - name: hdfs deploy apply 
-  hosts: 
-    - 158.247.252.37
+  hosts: master
   become: yes
   vars:
     hdfs_app_name: hdfs

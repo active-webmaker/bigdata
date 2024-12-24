@@ -1,7 +1,6 @@
 ---
 - name: django deploy apply 
-  hosts: 
-    - 192.168.55.0
+  hosts: master
   become: yes
   vars:
     django_app_name: django

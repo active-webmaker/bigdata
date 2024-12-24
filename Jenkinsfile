@@ -4,14 +4,34 @@ pipeline {
         // 환경 변수 설정
         DOCKER_TAG = "latest"
         MAIN_PLAYBOOK = "main_deploy.yml"
+        APT_PLAYBOOK = "provisioning_apt.yml"
+        INVENTORY_FILE = "inventory.ini"
         SEARCH_PLAYBOOK = "deploy.yml"
-        DOCKER_FOLDERS = ["Nginx", "Django", "Airflow", "BigTop"]
+        DOCKER_FOLDERS = ["Nginx", "MySQL", "Flask", "Airflow", "BigTop"]
     }
     stages {
         stage('Checkout') {
             steps {
                 // GitHub에서 코드 체크아웃
                 git url: 'https://github.com/active-webmaker/bigdata.git', branch: 'main'
+            }
+        }
+        stage('Detect APT and Inventory File Changes') {
+            steps {
+                script {
+                    // Dockerfile의 변경 사항 확인
+                    def aptFileChanged = sh(script: "git diff --name-only origin/main | grep ${env.APT_PLAYBOOK} || true", returnStatus: true) == 0
+                    def inventoryFileChanged = sh(script: "git diff --name-only origin/main | grep ${env.INVENTORY_FILE} || true", returnStatus: true) == 0
+                    
+                    // 변경 사항 여부를 로깅
+                    echo "apt File changed: ${aptFileChanged}"
+                    echo "Inventory File changed: ${inventoryFileChanged}"
+
+                    // 변경 사항 여부를 확인
+                    if (aptFileChanged || inventoryFileChanged) {
+                        sh "ansible-playbook -i ${env.INVENTORY_FILE}} ${env.APT_PLAYBOOK}"
+                    }
+                }
             }
         }
         stage('Detect DockerFile Changes') {
@@ -63,7 +83,7 @@ pipeline {
                     }
                     // 앤서블 플레이북 배포
                     try {
-                        sh "ansible-playbook ${env.MAIN_PLAYBOOK}"
+                        sh "ansible-playbook -i ${env.INVENTORY_FILE}} ${env.MAIN_PLAYBOOK}"
                     } catch (Exception e) {
                         error "Ansible deployment failed: ${e.getMessage()}"
                     }

@@ -1,7 +1,6 @@
 ---
 - name: airflow deploy apply 
-  hosts: 
-    - 158.247.252.37
+  hosts: master
   become: yes
   vars:
     airflow_app_name: airflow
