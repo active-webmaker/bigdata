@@ -7,7 +7,7 @@
     Kubelet_version: 1.30
     Kubeadm_version: 1.30
     Kubectl_version: 1.30
-    Containerd_version: 1.6.36
+    Containerd_version: 1.6.33-1
 
   tasks:
     # 자바 파트 시작
