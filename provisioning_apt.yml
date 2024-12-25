@@ -3,37 +3,106 @@
   hosts: all
   become: yes
   vars:
-    Java_version: 17.0.13
-    Docker_version: 27.4.1
-    Kubelet_version: 1.32
-    Kubeadm_version: 1.32
-    Kubectl_version: 1.32
+    Docker_version: 24.0.7
+    Kubelet_version: 1.30
+    Kubeadm_version: 1.30
+    Kubectl_version: 1.30
+    Containerd_version: 1.6.36
+    Master_node: 158.247.252.37
 
   tasks:
+    # 자바 파트 시작
     - name: Install Java
       apt:
-        name: "openjdk-17-jre={{ Java_version }}"
+        name: "openjdk-17-jdk"
         state: present
 
-    - name: Install Docker
-      apt:
-        name: "docker.io={{ Docker_version }}"
-        state: present
 
-    - name: Install Kubernetes
+    # 도커 파트 시작
+    # 1. Install prerequisite packages
+    - name: Install prerequisite packages
       apt:
         name:
-          - "kubelet={{ Kubelet_version }}"
-          - "kubeadm={{ Kubeadm_version }}"
-          - "kubectl={{ Kubectl_version }}"
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - software-properties-common
+        state: present
+        update_cache: yes
+
+    # 2. Docker GPG key 추가
+    - name: Add Docker's official GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    # 3. Docker apt 저장소 추가
+    - name: Set up the Docker stable repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
+    # 4. apt cache 업데이트
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    # 5.특정 버전 지정해 Docker 설치하기
+    - name: Install specific Docker version
+      apt:
+        name: 
+          - "docker-ce={{ Docker_version }}"
+          - "docker-ce-cli={{ Docker_version }}"
+          - "containerd.io={{ Containerd_version }}"
+        state: present
+
+    # 6.Docker 그룹에 유저 추가하기
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    # 7. Docker 서비스 시작 및 활성화
+    - name: Ensure Docker service is enabled and running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+
+    # 쿠버네티스 설치
+    - name: Add Kubernetes apt key
+      apt_key:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
+
+    - name: Add Kubernetes repository
+      apt_repository:
+        repo: "deb https://apt.kubernetes.io/ kubernetes-xenial main"
+        state: present
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Kubernetes components
+      apt:
+        name:
+          - "kubelet={{ kubelet_version }}"
+          - "kubeadm={{ kubeadm_version }}"
+          - "kubectl={{ kubectl_version }}"
         state: present
 
 
 
 - name: Kubernetes init
-  hosts: 
-    - 192.168.55.0
+  hosts: master
   become: yes
+  vars:
+    kubernetes_version: "1.32.0"
 
   tasks:
     - name: Check Kubernetes init excuted
@@ -42,28 +111,41 @@
       register: kubelet_conf_status
 
     - name: init Kubernetes master node
-      command: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-cert-extra-sans=192.168.55.0
+      command: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-cert-extra-sans="{{ Master_node }}"
       register: kubeadm_init_output
       when: not kubelet_conf_status.stat.exists
 
-    - name: Copy join command to local file
-      local_action: copy content="{{ kubeadm_init_output.stdout_lines[-1] }}" dest=join_command.sh
+    - name: Set kubeconfig for root
+      shell: |
+        mkdir -p $HOME/.kube
+        cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+        chown $(id -u):$(id -g) $HOME/.kube/config
+      when: not kubelet_conf_status.stat.exists
+
+    - name: Save join command to file
+      local_action:
+        module: copy
+        content: "{{ kubeadm_init_output.stdout | regex_search('kubeadm join.*') }}"
+        dest: ./join_command.sh
+      when: not kubelet_conf_status.stat.exists
+
+    - name: Apply Flannel CNI plugin
+      shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
       when: not kubelet_conf_status.stat.exists
 
 
-
 - name: Kubernetes join
-  hosts: 
-    - 192.168.55.1
-    - 192.168.55.2
+  hosts: worker
   become: yes
+  vars:
+    kubernetes_version: "1.32.0"
 
   tasks:
-    - name: Check Kubernetes join excuted
+    - name: Check Kubernetes join executed
       stat:
         path: /var/lib/kubelet/config.yaml
       register: kubelet_conf_yaml_status
-  
+
     - name: Join Kubernetes worker node
-      shell: "{{ lookup('file', 'join_command.sh') }}"
+      shell: "bash ./join_command.sh"
       when: not kubelet_conf_yaml_status.stat.exists
