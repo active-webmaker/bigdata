@@ -3,7 +3,7 @@
   hosts: all
   become: yes
   vars:
-    Docker_version: 24.0.7
+    Docker_version: 5:27.4.1-1~ubuntu.22.04~jammy
     Kubelet_version: 1.30
     Kubeadm_version: 1.30
     Kubectl_version: 1.30
@@ -58,14 +58,7 @@
           - "containerd.io={{ Containerd_version }}"
         state: present
 
-    # 6.Docker 그룹에 유저 추가하기
-    - name: Add user to docker group
-      user:
-        name: "{{ ansible_user }}"
-        groups: docker
-        append: yes
-
-    # 7. Docker 서비스 시작 및 활성화
+    # 6. Docker 서비스 시작 및 활성화
     - name: Ensure Docker service is enabled and running
       service:
         name: docker
