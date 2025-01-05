@@ -1,0 +1,7 @@
+# main_deploy.yaml
+- hosts: all
+  become: true
+  tasks:
+    - import_playbook: provisioning_apt.yaml
+    - import_playbook: provisioning_kubernetes.yaml
+    - import_playbook: provisioning_helm.yaml

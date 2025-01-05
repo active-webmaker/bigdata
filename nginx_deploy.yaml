@@ -1,0 +1,34 @@
+- name: Install and Deploy Nginx Ingress Controller
+  hosts: master
+  become: true
+  vars:
+    nginx_ingress_replicas: 2
+  tasks:
+
+    # 1. Nginx Ingress Controller Helm 리포지토리 추가
+    - name: Add Nginx Ingress Controller Helm repo
+      kubernetes.core.helm_repository:
+        name: ingress-nginx
+        repo_url: https://kubernetes.github.io/ingress-nginx
+  
+  
+    # 3. Nginx Ingress Controller 설치 또는 업그레이드 (개선)
+    - name: Install/Upgrade Nginx Ingress Controller using Helm
+      kubernetes.core.helm:
+        name: ingress-nginx-controller
+        chart_ref: ingress-nginx/ingress-nginx
+        release_namespace: ingress-nginx # 네임스페이스 지정
+        create_namespace: yes # 네임스페이스 자동 생성
+        values: # values.yaml을 통한 설정
+          controller:
+            replicaCount: 2 # 레플리카 수 조절
+            service:
+              type: LoadBalancer # 서비스 타입 지정 (필요에 따라 NodePort 등으로 변경)
+        state: present # idempotent한 작업을 위해 state 명시
+      register: helm_result # 결과 등록
+
+
+    # 4. 설치 결과 확인 (추가)
+    - name: Print Helm deployment status
+      debug:
+        msg: "Helm deployment status: {{ helm_result }}"

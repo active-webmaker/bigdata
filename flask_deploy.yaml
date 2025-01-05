@@ -1,7 +1,6 @@
----
 - name: flask deploy apply 
   hosts: master
-  become: yes
+  become: true
   vars:
     flask_app_name: flask
     flask_replicas: 3
@@ -9,7 +8,7 @@
 
   tasks:
     - name: Create or update Kubernetes Deployment
-      k8s:
+      kubernetes.core.k8s:
         state: present
         definition: 
           apiVersion: apps/v1
@@ -36,7 +35,7 @@
 
 
     - name: Expose the deployment as a service
-      k8s:
+      kubernetes.core.k8s:
         state: present
         definition:
           apiVersion: v1
@@ -50,3 +49,24 @@
               - protocol: TCP
                 port: 11000
                 targetPort: 11000
+
+
+    - name: Set Ingress for Flask
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: flask-ingress
+          spec:
+            rules:
+            - http:
+                paths:
+                - path: /flask
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: flask-app-service
+                      port:
+                        number: 80

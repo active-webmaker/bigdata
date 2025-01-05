@@ -1,0 +1,110 @@
+- name: spark deploy apply 
+  hosts: master
+  become: true
+  vars:
+    spark_app_name: spark
+    spark_replicas: 2
+    spark_image_name: bigtop:latest
+
+  tasks:
+    - name: Create or update spark-master Deployment
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{spark_app_name}}-master"
+            labels:
+              app: "{{spark_app_name}}"
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: "{{spark_app_name}}"
+                role: master
+            template:
+              metadata:
+                labels:
+                  app: "{{spark_app_name}}"
+                  role: master
+              spec:
+                containers:
+                - name: "{{spark_app_name}}-master"
+                  image: "{{spark_image_name}}"
+                  ports:
+                  - containerPort: 7077
+                  - containerPort: 8080
+
+
+    - name: Create or update spark-worker Deployment
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{spark_app_name}}-worker"
+            labels:
+              app: spark
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app: "{{spark_app_name}}"
+                role: worker
+            template:
+              metadata:
+                labels:
+                  app: "{{spark_app_name}}"
+                  role: worker
+              spec:
+                containers:
+                - name: "{{spark_app_name}}-worker"
+                  image: "{{spark_app_name}}"
+                  ports:
+                  - containerPort: 8081
+                  env:
+                  - name: SPARK_MASTER_URL
+                    value: spark://spark-master:7077
+
+
+    - name: Expose the spark-master deployment as a service
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ spark_app_name }}-master-service"
+          spec:
+            selector:
+              app: "{{ spark_app_name }}"
+              role: master
+            ports:
+              - protocol: TCP
+                port: 7077
+                targetPort: 7077
+              - protocol: TCP
+                port: 8080
+                targetPort: 8080
+            type: ClusterIP
+
+
+    - name: Expose the spark-worker deployment as a service
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ spark_app_name }}-worker-service"
+          spec:
+            selector:
+              app: "{{ spark_app_name }}-worker"
+              role: worker
+            ports:
+              - protocol: TCP
+                port: 8081
+                targetPort: 8081
+            type: ClusterIP

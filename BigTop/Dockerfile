@@ -31,9 +31,10 @@ RUN ./gradlew bigtop-packages
 # Hadoop, Spark 등의 빅데이터 패키지를 설치하고 환경을 설정
 RUN ./gradlew hadoop-deb
 RUN ./gradlew spark-deb
+RUN ./gradlew zookeeper-deb
 RUN ./gradlew kafka-deb
-RUN ./gradlew hive-deb
-RUN ./gradlew flink-deb
+# RUN ./gradlew hive-deb
+# RUN ./gradlew flink-deb
 
 # 컨테이너 시작 시 실행할 기본 명령어 (예: Hadoop 실행)
 CMD ["/usr/local/hadoop/sbin/start-dfs.sh"]

@@ -1,0 +1,49 @@
+- name: Helm install
+  hosts: master
+  become: true
+  vars:
+    helm_version: 3.12.0-1
+
+  tasks:
+    # 1. Helm 의존성 도구 사전 설치
+    - name: Install prerequisite packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - software-properties-common
+        state: present
+        update_cache: yes
+
+    # 2. Helm GPG key 추가
+    - name: Add Helm's official GPG key
+      apt_key:
+        url: https://baltocdn.com/helm/signing.asc
+        state: present
+
+    # 3. Helm apt 저장소 추가
+    - name: Set up the Helm stable repository
+      apt_repository:
+        repo: "deb https://baltocdn.com/helm/stable/debian/ all main"
+        state: present
+        filename: helm
+
+    # 4. apt cache 업데이트
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    # 5. Helm 설치하기
+    - name: Install specific Helm version
+      apt:
+        name: "helm={{ helm_version }}"
+        state: present
+
+    # 6. 설치 확인
+    - name: Verify Helm installation
+      command: helm version
+      register: helm_version
+      failed_when: "'version' not in helm_version.stdout"
+      changed_when: false

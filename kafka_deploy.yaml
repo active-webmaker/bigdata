@@ -1,25 +1,75 @@
----
+- name: PV Folder Test
+  hosts: all
+  become: true
+  vars:
+    pvs:
+      - path: "/mnt/block-storage1"
+        folder: "kafka0"
+        node: master_node
+
+      - path: "/mnt/block-storage3"
+        folder: "kafka1"
+        node: bigdata102
+
+
+  task:
+    - name: Ensure PV folders exist for each node
+      file:
+        path: "{{ item.path }}/{{ item.folder }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      with_items: "{{ pvs }}"
+      when: inventory_hostname == item.node
+
+
+
 - name: kafka deploy apply 
   hosts: master
-  become: yes
+  become: true
   vars:
     kafka_app_name: kafka
-    kafka_storage_name: kafka-storage-class
     kafka_replicas: 2
     kafka_image_name: bigtop:latest
 
+    pvs:
+      - name: kafka-pv-data-0
+        size: 1Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage1"
+        folder: "kafka0"
+        node: master_node
+
+      - name: kafka-pv-data-1
+        size: 1Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage3"
+        folder: "kafka1"
+        node: bigdata102
+  
 
   tasks:
-    - name: Create StorageClass for kafka
+    - name: Set mysql PersistentVolume
       kubernetes.core.k8s:
         state: present
         definition:
-          apiVersion: storage.k8s.io/v1
-          kind: StorageClass
+          apiVersion: v1
+          kind: PersistentVolume
           metadata:
-            name: "{{ kafka_storage_name }}"
-          provisioner: kubernetes.io/no-provisioner
-          volumeBindingMode: WaitForFirstConsumer
+            name: "{{ item.name }}"
+          spec:
+            capacity:
+              storage: "{{ item.size }}"
+            accessModes:
+              - "{{ item.access_modes }}"
+            persistentVolumeReclaimPolicy: Retain
+            hostPath:
+              path: "{{ item.path }}/{{ item.folder }}"
+            nodeSelector:
+              kubernetes.io/hostname: "{{ item.node }}"
+      with_items: "{{ pvs }}"
+
 
 
     - name: Deploy Kafka StatefulSet
@@ -63,10 +113,10 @@
                 resources:
                   requests:
                     storage: 1Gi
-                storageClassName: "{{ kafka_storage_name }}"
+                volumeName: kafka-pv-data-$(pod.ordinal)
 
 
-    - name: Expose the StatefulSet as a service
+    - name: Expose the kafka StatefulSet as a service
       kubernetes.core.k8s:
         state: present
         definition:

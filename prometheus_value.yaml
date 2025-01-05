@@ -1,0 +1,81 @@
+---
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelector: {}
+    ruleSelector: {}
+
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1  # Alertmanager 인스턴스 복제 수
+
+grafana:
+  grafanaSpec:
+    replicas: 1  # Grafana 인스턴스 복제 수
+
+
+# 추가 ServiceMonitor 정의
+# additionalServiceMonitors:
+#   - name: custom-service-monitor
+#     selector:
+#       matchLabels:
+#         app: app-name
+#     endpoints:
+#       - port: http
+#         interval: 60s
+
+# 추가 PrometheusRule 정의
+additionalPrometheusRules:
+  - name: custom-alert-rules
+    groups:
+      - name: node-cpu-usage
+        rules:
+          - alert: HighCPUUsage-80
+            expr: sum(rate(node_cpu_seconds_total{mode!="idle"}[1m])) / count(node_cpu_seconds_total{mode="idle"}) > 0.8
+            for: 3m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High CPU usage detected"
+              description: "CPU usage is above 80%"
+
+          - alert: HighCPUUsage-90
+            expr: sum(rate(node_cpu_seconds_total{mode!="idle"}[1m])) / count(node_cpu_seconds_total{mode="idle"}) > 0.9
+            for: 3m
+            labels:
+              severity: critical
+            annotations:
+              summary: "High CPU usage detected"
+              description: "CPU usage is above 90%"
+
+
+      - name: node-memory-usage
+        rules:
+          - alert: HighMemoryUsage-80
+            expr: node_memory_Active_bytes / node_memory_MemTotal_bytes > 0.8
+            for: 3m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High memory usage detected"
+              description: "Memory usage is above 80%"
+
+          - alert: HighMemoryUsage-90
+            expr: node_memory_Active_bytes / node_memory_MemTotal_bytes > 0.9
+            for: 3m
+            labels:
+              severity: critical
+            annotations:
+              summary: "High memory usage detected"
+              description: "Memory usage is above 90%"
+
+service:
+  type: NodePort
+  nodePort: 30000  # 원하는 NodePort 설정
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+

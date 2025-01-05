@@ -1,0 +1,223 @@
+- name: PV Folder Test
+  hosts: all
+  become: true
+  vars:
+    pvs:
+      - path: "/mnt/block-storage3"
+        folder: "airflow_pv"
+        node: bigdata102
+
+  tasks:
+    - name: Ensure PV folders exist for each node
+      file:
+        path: "{{ item.path }}/{{ item.folder }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      with_items: "{{ pvs }}"
+      when: inventory_hostname == item.node
+
+
+
+- name: airflow deploy apply 
+  hosts: master
+  become: true
+  vars:
+    airflow_app_name: airflow
+    airflow_namespace: "{{ airflow_namespace }}"
+    airflow_web_replicas: 1
+    airflow_schedule_replicas: 1
+    airflow_work_replicas: 1
+    airflow_image_name: apache/airflow:latest
+
+
+    airflow_PVC_name: airflow-pvc
+    airflow_PV_name: airflow-pv-data
+    airflow_PV_size: 2Gi
+    airflow_PV_access_modes: ReadWriteMany
+    airflow_PV_path: "/mnt/block-storage3"
+    airflow_PV_folder: "airflow_pv"
+    airflow_PV_node: bigdata102
+    airflow_db: "mysql+pymysql://{{ mysqlid }}:{{ mysqlpw }}@mysql/airflow"
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: 
+
+
+  tasks:
+    - name: Create Airflow Namespace
+      kubernetes.core.k8s:
+        name: "{{ airflow_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+
+
+    - name: Set Airflow ConfigMap
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: "{{ airflow_app_name }}-config"
+            namespace: "{{ airflow_namespace }}"
+          data:
+            airflow.cfg: |
+              [core]
+              executor = KubernetesExecutor
+
+
+    - name: Set airflow Secret
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ airflow_app_name }}-secrets"
+            namespace: "{{ airflow_namespace }}"
+          type: Opaque
+          stringData:
+            AIRFLOW__CORE__SQL_ALCHEMY_CONN: "{{ airflow_db }}" # Airflow DB 연결
+
+
+    - name: Set airflow PV
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: "{{ airflow_PV_name }}"
+          spec:
+            capacity:
+              storage: "{{ airflow_PV_size }}"
+            accessModes:
+              - "{{ airflow_PV_access_modes }}"
+            persistentVolumeReclaimPolicy: Retain
+            hostPath:
+              path: "{{ airflow_PV_path }}/{{ airflow_PV_folder }}"
+            nodeSelector:
+              kubernetes.io/hostname: "{{ airflow_PV_node }}"
+
+
+    - name: Set airflow PVC
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: "{{ airflow_PVC_name }}"
+            namespace: "{{ airflow_namespace }}"
+          spec:
+            accessModes:
+              - "{{ airflow_PV_access_modes }}"
+            resources:
+              requests:
+                storage: "{{ airflow_PV_size }}"
+
+
+    - name: Deploy airflow webserver
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{ airflow_app_name }}-webserver"
+            namespace: "{{ airflow_namespace }}"
+          spec:
+            replicas: "{{ airflow_web_replicas }}" # 웹 서버 인스턴스 수
+            selector:
+              matchLabels:
+                app: "{{ airflow_app_name }}-webserver"
+            template:
+              metadata:
+                labels:
+                  app: "{{ airflow_app_name }}-webserver"
+              spec:
+                containers:
+                - name: webserver
+                  image: "{{ airflow_image_name }}"
+                  ports:
+                  - containerPort: 8090
+                  envFrom:
+                  - secretRef:
+                      name: airflow-secrets
+
+
+    - name: Deploy airflow webserver Service
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ airflow_app_name }}-webserver-Service"
+            namespace: "{{ airflow_namespace }}"
+          spec:
+            selector:
+              app: "{{ airflow_app_name }}-webserver"
+            ports:
+            - protocol: TCP
+              port: 8090 # 외부 포트
+              targetPort: 8090 # 컨테이너 포트
+            type: LoadBalancer
+
+
+    - name: Deploy airflow scheduler
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{ airflow_app_name }}-scheduler"
+            namespace: "{{ airflow_namespace }}"
+          spec:
+            replicas: "{{ airflow_schedule_replicas }}"
+            selector:
+              matchLabels:
+                app: "{{ airflow_app_name }}-scheduler"
+            template:
+              metadata:
+                labels:
+                  app: "{{ airflow_app_name }}-scheduler"
+              spec:
+                containers:
+                - name: scheduler
+                  image: "{{ airflow_image_name }}"
+                  command: ["airflow", "scheduler"]
+                  envFrom:
+                  - secretRef:
+                      name: airflow-secrets
+
+
+    - name: Deploy airflow worker
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{ airflow_app_name }}-worker"
+            namespace: "{{ airflow_namespace }}"
+          spec:
+            replicas: "{{ airflow_work_replicas }}"
+            selector:
+              matchLabels:
+                app: "{{ airflow_app_name }}-worker"
+            template:
+              metadata:
+                labels:
+                  app: "{{ airflow_app_name }}-worker"
+              spec:
+                containers:
+                - name: worker
+                  image: "{{ airflow_image_name }}"
+                  command: ["airflow", "worker"]
+                  envFrom:
+                  - secretRef:
+                      name: airflow-secrets
+

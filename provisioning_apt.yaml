@@ -1,0 +1,63 @@
+- name: apt App Install
+  hosts: all
+  become: true
+  vars:
+    Docker_version: 5:27.4.1-1~ubuntu.22.04~jammy
+    Containerd_version: 1.6.33-1
+
+  tasks:
+    # 자바 파트 시작
+    - name: Install Java
+      apt:
+        name: "openjdk-17-jdk"
+        state: present
+
+
+    # 도커 파트 시작
+    # 1. 의존성 도구 사전 설치
+    - name: Install prerequisite packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - software-properties-common
+        state: present
+        update_cache: yes
+
+    # 2. Docker GPG key 추가
+    - name: Add Docker's official GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    # 3. Docker apt 저장소 추가
+    - name: Set up the Docker stable repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
+    # 4. apt cache 업데이트
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    # 5.특정 버전 지정해 Docker 설치하기
+    - name: Install specific Docker version
+      apt:
+        name: 
+          - "docker-ce={{ Docker_version }}"
+          - "docker-ce-cli={{ Docker_version }}"
+          - "containerd.io={{ Containerd_version }}"
+        state: present
+
+    # 6. Docker 서비스 시작 및 활성화
+    - name: Ensure Docker service is enabled and running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+

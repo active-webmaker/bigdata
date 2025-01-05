@@ -1,25 +1,96 @@
----
+- name: PV Folder Test
+  hosts: all
+  become: true
+  vars:
+    pvs:
+      - path: "/mnt/block-storage1"
+        folder: "hdfs0"
+        node: master_node
+
+      - path: "/mnt/block-storage2"
+        folder: "hdfs1"
+        node: master_node
+
+      - path: "/mnt/block-storage3"
+        folder: "hdfs2"
+        node: bigdata102
+
+      - path: "/mnt/block-storage4"
+        folder: "hdfs3"
+        node: bigdata102
+
+  task:
+    - name: Ensure PV folders exist for each node
+      file:
+        path: "{{ item.path }}/{{ item.folder }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      with_items: "{{ pvs }}"
+      when: inventory_hostname == item.node
+
+
+
 - name: hdfs deploy apply 
   hosts: master
-  become: yes
+  become: true
   vars:
     hdfs_app_name: hdfs
     hdfs_storage_name: hdfs-storage-class
     hdfs_replicas: 3
     hdfs_image_name: bigtop:latest
 
+    pvs:
+      - name: hdfs-pv-data-0
+        size: 10Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage1"
+        folder: "hdfs0"
+        node: master_node
+
+      - name: hdfs-pv-data-1
+        size: 10Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage2"
+        folder: "hdfs1"
+        node: master_node
+
+      - name: hdfs-pv-data-2
+        size: 10Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage3"
+        folder: "hdfs2"
+        node: bigdata102
+
+      - name: hdfs-pv-data-3
+        size: 10Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage4"
+        folder: "hdfs3"
+        node: bigdata102
+  
 
   tasks:
-    - name: Create StorageClass for hdfs
+    - name: Set airflow PersistentVolume
       kubernetes.core.k8s:
         state: present
         definition:
-          apiVersion: storage.k8s.io/v1
-          kind: StorageClass
+          apiVersion: v1
+          kind: PersistentVolume
           metadata:
-            name: "{{ hdfs_storage_name }}"
-          provisioner: kubernetes.io/no-provisioner
-          volumeBindingMode: WaitForFirstConsumer
+            name: "{{ item.name }}"
+          spec:
+            capacity:
+              storage: "{{ item.size }}"
+            accessModes:
+              - "{{ item.access_modes }}"
+            persistentVolumeReclaimPolicy: Retain
+            hostPath:
+              path: "{{ item.path }}/{{ item.folder }}"
+            nodeSelector:
+              kubernetes.io/hostname: "{{ item.node }}"
+      with_items: "{{ pvs }}"
 
 
     - name: Deploy hdfs StatefulSet
@@ -65,6 +136,7 @@
                     else
                         echo "Starting DataNode"
                         hdfs datanode
+                    fi
                   ports:
                   - containerPort: 50070  # NameNode Web UI
                   - containerPort: 50075  # DataNode
@@ -79,7 +151,7 @@
                 resources:
                   requests:
                     storage: "{{ hdfs_storage_size }}"
-                storageClassName: "{{ hdfs_storage_name }}"
+                volumeName: "hdfs-pv-data-$(pod.ordinal)"
 
 
     - name: Expose NameNode Service
@@ -98,6 +170,7 @@
                 port: 50070
                 targetPort: 50070
             type: NodePort
+
 
     - name: Expose DataNode Service
       kubernetes.core.k8s:

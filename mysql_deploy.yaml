@@ -1,25 +1,72 @@
----
+- name: PV Folder Test
+  hosts: all
+  become: true
+  vars:
+    pvs:
+      - path: "/mnt/block-storage1"
+        folder: "mysql0"
+        node: master_node
+
+      - path: "/mnt/block-storage3"
+        folder: "mysql1"
+        node: bigdata102
+
+
+  task:
+    - name: Ensure PV folders exist for each node
+      file:
+        path: "{{ item.path }}/{{ item.folder }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      with_items: "{{ pvs }}"
+      when: inventory_hostname == item.node
+
+
+
 - name: mysql deploy apply 
   hosts: master
-  become: yes
+  become: true
   vars:
     mysql_app_name: mysql
-    mysql_storage_name: mysql-storage-class
     mysql_replicas: 2
     mysql_image_name: mysql:latest
 
+    pvs:
+      - name: mysql-pv-data-0
+        size: 1Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage1"
+        folder: "mysql0"
+        node: master_node
+
+      - name: mysql-pv-data-1
+        size: 1Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage3"
+        folder: "mysql1"
+        node: bigdata102
+  
 
   tasks:
-    - name: Create StorageClass for MySQL
+    - name: Set mysql PersistentVolume
       kubernetes.core.k8s:
         state: present
         definition:
-          apiVersion: storage.k8s.io/v1
-          kind: StorageClass
+          apiVersion: v1
+          kind: PersistentVolume
           metadata:
-            name: "{{ mysql_storage_name }}"
-          provisioner: kubernetes.io/no-provisioner
-          volumeBindingMode: WaitForFirstConsumer
+            name: "{{ item.name }}"
+          spec:
+            capacity:
+              storage: "{{ item.size }}"
+            accessModes:
+              - "{{ item.access_modes }}"
+            persistentVolumeReclaimPolicy: Retain
+            hostPath:
+              path: "{{ item.path }}/{{ item.folder }}"
+      with_items: "{{ pvs }}"
 
 
     - name: Create ConfigMap for MySQL initialization
@@ -37,6 +84,10 @@
               
               if [[ "$(hostname)" == "mysql-0" ]]; then
                   echo "Initializing as Master"
+                  mysql -u root -p"${mysql_root_password}" -e "CREATE USER 'replica'@'%' IDENTIFIED BY '${replication_password}';"
+                  mysql -u root -p"${mysql_root_password}" -e "GRANT REPLICATION SLAVE ON *.* TO 'replica'@'%';"
+                  mysql -u root -p"${mysql_root_password}" -e "FLUSH PRIVILEGES;"
+                  
                   mysql -u root -p"${mysql_root_password}" -e "CREATE USER 'replica'@'%' IDENTIFIED BY '${replication_password}';"
                   mysql -u root -p"${mysql_root_password}" -e "GRANT REPLICATION SLAVE ON *.* TO 'replica'@'%';"
                   mysql -u root -p"${mysql_root_password}" -e "FLUSH PRIVILEGES;"
@@ -111,7 +162,8 @@
                 resources:
                   requests:
                     storage: 2Gi
-                storageClassName: "{{ kafka_storage_name }}"
+                volumeName: mysql-pv-data-$(pod.ordinal)
+
 
 
     - name: Expose the StatefulSet as a service

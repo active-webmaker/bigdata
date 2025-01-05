@@ -1,0 +1,181 @@
+- name: PV Folder Test
+  hosts: all
+  become: true
+  vars:
+    pvs:
+      - path: "/mnt/block-storage2"
+        folder: "zookeeper0"
+        node: master_node
+
+      - path: "/mnt/block-storage3"
+        folder: "zookeeper1"
+        node: bigdata102
+
+      - path: "/mnt/block-storage4"
+        folder: "zookeeper2"
+        node: bigdata102
+
+  task:
+    - name: Ensure PV folders exist for each node
+      file:
+        path: "{{ item.path }}/{{ item.folder }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      with_items: "{{ pvs }}"
+      when: inventory_hostname == item.node
+
+
+
+- name: zookeeper deploy apply 
+  hosts: master
+  become: true
+  vars:
+    zookeeper_app_name: zookeeper
+    zookeeper_replicas: 1
+    zookeeper_image_name: BigTop:latest
+    zookeeper_storage_size: 1Gi
+
+    pvc:
+      - name: zookeeper-pv-data-0
+        size: 1Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage2"
+        folder: "zookeeper0"
+        node: master
+
+      - name: zookeeper-pv-data-1
+        size: 1Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage3"
+        folder: "zookeeper1"
+        node: bigdata102
+
+      - name: zookeeper-pv-data-2
+        size: 1Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage4"
+        folder: "zookeeper2"
+        node: bigdata102
+  
+
+  tasks:
+    - name: Set zookeeper PersistentVolume
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: "{{ item.name }}"
+          spec:
+            capacity:
+              storage: "{{ item.size }}"
+            accessModes:
+              - "{{ item.access_modes }}"
+            persistentVolumeReclaimPolicy: Retain
+            hostPath:
+              path: "{{ item.path }}/{{ item.folder }}"
+            nodeSelector:
+              kubernetes.io/hostname: "{{ item.node }}"
+      with_items: "{{ pvs }}"
+
+
+    - name: Set zookeeper ConfigMap
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: zookeeper-config
+          data:
+            zoo.cfg: |
+              tickTime=2000
+              dataDir=/data
+              clientPort=2181
+              initLimit=5
+              syncLimit=2
+              server.1=zookeeper-0.zookeeper.default.svc.cluster.local:2888:3888
+              server.2=zookeeper-1.zookeeper.default.svc.cluster.local:2888:3888
+              server.3=zookeeper-2.zookeeper.default.svc.cluster.local:2888:3888
+
+
+    - name: Deploy zookeeper StatefulSet
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: StatefulSet
+          metadata:
+            name: "{{ zookeeper_app_name }}-StatefulSet"
+          spec:
+            serviceName: 
+            replicas: 3
+            selector:
+              matchLabels:
+                app: "{{ zookeeper_app_name }}"
+            template:
+              metadata:
+                labels:
+                  app: "{{ zookeeper_app_name }}"
+              spec:
+                containers:
+                - name: "{{ zookeeper_app_name }}-containers"
+                  image: zookeeper:3.7
+                  ports:
+                  - containerPort: 2181
+                    name: client
+                  - containerPort: 2888
+                    name: quorum
+                  - containerPort: 3888
+                    name: leader-election
+                  volumeMounts:
+                  - name: data
+                    mountPath: /data
+                  env:
+                  - name: ZOO_ID
+                    value: "zoo-podid-$(pod.ordinal)"
+                  - name: ZOO_CFG_EXTRA
+                    value: /config/zoo.cfg
+                  command:
+                  - sh
+                  - -c
+                  - |
+                    echo ${ZOO_ID} > /data/myid
+                    exec zkServer.sh start-foreground
+                volumes:
+                  - name: config
+                    configMap:
+                      name: zookeeper-config
+            volumeClaimTemplates:
+            - metadata:
+                name: zookeeper-storage
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: "{{ zookeeper_storage_size }}"
+                volumeName: "zookeeper-pv-data-$(pod.ordinal)"
+
+
+    - name: Deploy zookeeper Service
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ zookeeper_app_name }}-Service"
+          spec:
+            ports:
+            - name: client
+              port: 2181
+            - name: quorum
+              port: 2888
+            - name: leader-election
+              port: 3888
+            clusterIP: None
+            selector:
+              app: "{{ zookeeper_app_name }}"

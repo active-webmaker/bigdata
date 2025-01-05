@@ -3,10 +3,10 @@ pipeline {
     environment {
         // 환경 변수 설정
         DOCKER_TAG = "latest"
-        MAIN_PLAYBOOK = "main_deploy.yml"
-        APT_PLAYBOOK = "provisioning_apt.yml"
+        MAIN_PLAYBOOK = "main_deploy.yaml"
+        PROV_PLAYBOOK = "main_provisioning.yaml"
         INVENTORY_FILE = "inventory.ini"
-        SEARCH_PLAYBOOK = "deploy.yml"
+        SEARCH_PLAYBOOK = "deploy.yaml"
     }
     stages {
         stage('Checkout') {
@@ -15,23 +15,23 @@ pipeline {
                 git url: 'https://github.com/active-webmaker/bigdata.git', branch: 'main'
             }
         }
-        stage('Detect APT and Inventory File Changes') {
+        stage('Detect Provisioning File and Inventory File Changes') {
             steps {
                 script {
                     // 최신 변경 사항 가져오기
                     sh "git fetch origin main"
 
                     // Dockerfile의 변경 사항 확인
-                    def aptFileChanged = sh(script: "git diff --name-only FETCH_HEAD | grep ${env.APT_PLAYBOOK} || true", returnStatus: true) == 0
+                    def provFileChanged = sh(script: "git diff --name-only FETCH_HEAD | grep provisioning || true", returnStatus: true) == 0
                     def inventoryFileChanged = sh(script: "git diff --name-only FETCH_HEAD | grep ${env.INVENTORY_FILE} || true", returnStatus: true) == 0
                     
                     // 변경 사항 여부를 로깅
-                    echo "apt File changed: ${aptFileChanged}"
+                    echo "Provisioning File changed: ${provFileChanged}"
                     echo "Inventory File changed: ${inventoryFileChanged}"
 
                     // 변경 사항 여부를 확인
-                    if (aptFileChanged || inventoryFileChanged) {
-                        sh "ansible-playbook -i ${env.INVENTORY_FILE} ${env.APT_PLAYBOOK}"
+                    if (provFileChanged || inventoryFileChanged) {
+                        sh "ansible-playbook -i ${env.INVENTORY_FILE} -e ${env.PROV_PLAYBOOK}"
                     }
                 }
             }
@@ -88,7 +88,19 @@ pipeline {
                     }
                     // 앤서블 플레이북 배포
                     try {
-                        sh "ansible-playbook -i ${env.INVENTORY_FILE} ${env.MAIN_PLAYBOOK}"
+                        withCredentials([
+                            string(credentialsId: 'mysql_root_password', variable: 'MYSQL_PW'), 
+                            string(credentialsId: 'replication_password', variable: 'REPL_PW')
+                        ]) {
+                            ansiblePlaybook(
+                                playbook: "${env.MAIN_PLAYBOOK}",
+                                inventory: "${env.INVENTORY_FILE}",
+                                extraVars: [
+                                    mysql_root_password: "$MYSQL_PW",
+                                    replication_password: "$REPL_PW"
+                                ]
+                            )
+                        }
                     } catch (Exception e) {
                         error "Ansible deployment failed: ${e.getMessage()}"
                     }
