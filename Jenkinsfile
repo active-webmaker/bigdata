@@ -31,7 +31,10 @@ pipeline {
 
                     // 변경 사항 여부를 확인
                     if (provFileChanged || inventoryFileChanged) {
-                        sh "ansible-playbook -i ${env.INVENTORY_FILE} -e ${env.PROV_PLAYBOOK}"
+                        ansiblePlaybook(
+                            playbook: "${env.PROV_PLAYBOOK}",
+                            inventory: "${env.INVENTORY_FILE}"
+                        )
                     }
                 }
             }
