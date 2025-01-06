@@ -87,9 +87,9 @@
                   mysql -u root -p"${mysql_root_password}" -e "CREATE USER 'replica'@'%' IDENTIFIED BY '${replication_password}';"
                   mysql -u root -p"${mysql_root_password}" -e "GRANT REPLICATION SLAVE ON *.* TO 'replica'@'%';"
                   mysql -u root -p"${mysql_root_password}" -e "FLUSH PRIVILEGES;"
-                  
-                  mysql -u root -p"${mysql_root_password}" -e "CREATE USER 'replica'@'%' IDENTIFIED BY '${replication_password}';"
-                  mysql -u root -p"${mysql_root_password}" -e "GRANT REPLICATION SLAVE ON *.* TO 'replica'@'%';"
+
+                  mysql -u root -p"${mysql_root_password}" -e "CREATE USER 'airflow'@'%' IDENTIFIED BY '${airflow_password}';"
+                  mysql -u root -p"${mysql_root_password}" -e "GRANT REPLICATION SLAVE ON *.* TO 'airflow'@'%';"
                   mysql -u root -p"${mysql_root_password}" -e "FLUSH PRIVILEGES;"
               else
                   echo "Initializing as Slave"

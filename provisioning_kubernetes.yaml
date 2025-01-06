@@ -26,6 +26,13 @@
         content: |
           deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main
 
+    - name: Create APT config for Kubernetes
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/99kubernetes.conf
+        content: |
+          Acquire::AllowInsecureRepositories "true";
+          Acquire::https::Verify-Peer "false";
+
     - name: Update apt cache
       apt:
         update_cache: yes

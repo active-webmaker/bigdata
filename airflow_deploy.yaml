@@ -39,7 +39,7 @@
     airflow_PV_path: "/mnt/block-storage3"
     airflow_PV_folder: "airflow_pv"
     airflow_PV_node: bigdata102
-    airflow_db: "mysql+pymysql://{{ mysqlid }}:{{ mysqlpw }}@mysql/airflow"
+    airflow_db: "mysql+pymysql://airflow:{{ airflow_password }}@mysql/airflow"
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: 
 
 

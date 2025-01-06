@@ -94,6 +94,7 @@ pipeline {
                         withCredentials([
                             string(credentialsId: 'mysql_root_password', variable: 'MYSQL_PW'), 
                             string(credentialsId: 'replication_password', variable: 'REPL_PW')
+                            string(credentialsId: 'airflow_password', variable: 'AIR_PW')
                         ]) {
                             ansiblePlaybook(
                                 playbook: "${env.MAIN_PLAYBOOK}",
@@ -101,6 +102,7 @@ pipeline {
                                 extraVars: [
                                     mysql_root_password: "$MYSQL_PW",
                                     replication_password: "$REPL_PW"
+                                    airflow_password: "$AIR_PW"
                                 ]
                             )
                         }
