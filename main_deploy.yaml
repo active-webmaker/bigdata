@@ -1,13 +1,9 @@
-# main_deploy.yaml
-- hosts: all
-  become: true
-  tasks:
-    - import_playbook: nginx_deploy.yaml
-    - import_playbook: mysql_deploy.yaml
-    - import_playbook: flask_deploy.yaml
-    - import_playbook: hdfs_deploy.yaml
-    - import_playbook: spark_deploy.yaml
-    - import_playbook: zookeeper_deploy.yaml
-    - import_playbook: kafka_deploy.yaml
-    - import_playbook: airflow_deploy.yaml
-    - import_playbook: prometheus_deploy.yaml
+- import_playbook: nginx_deploy.yaml
+- import_playbook: mysql_deploy.yaml
+- import_playbook: flask_deploy.yaml
+- import_playbook: hdfs_deploy.yaml
+- import_playbook: spark_deploy.yaml
+- import_playbook: zookeeper_deploy.yaml
+- import_playbook: kafka_deploy.yaml
+- import_playbook: airflow_deploy.yaml
+- import_playbook: prometheus_deploy.yaml
