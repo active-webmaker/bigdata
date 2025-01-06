@@ -8,30 +8,23 @@
 
   tasks:
     # 쿠버네티스 파트 시작
-    - name: Download Kubernetes apt key
-      ansible.builtin.get_url:
-        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
-        dest: /tmp/apt-key.gpg
-        mode: '0644'
+    - name: Install apt-transport-https
+      apt:
+        name: apt-transport-https
+        state: present
+      when: ansible_os_family == "Debian"
 
-    - name: Add Kubernetes apt key to keyring
-      ansible.builtin.command:
-        cmd: gpg --dearmor -o /usr/share/keyrings/kubernetes-archive-keyring.gpg /tmp/apt-key.gpg
-      args:
-        creates: /usr/share/keyrings/kubernetes-archive-keyring.gpg
+    - name: Download gpg
+      apt_key:
+        url: https://apt.kubernetes.io/apt/doc/apt-key.gpg
+        state: present
+      when: ansible_os_family == "Debian"
 
     - name: Add Kubernetes repository
-      ansible.builtin.copy:
+      copy:
         dest: /etc/apt/sources.list.d/kubernetes.list
         content: |
           deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes jammy main
-
-    - name: Create APT config for Kubernetes
-      ansible.builtin.copy:
-        dest: /etc/apt/apt.conf.d/99kubernetes.conf
-        content: |
-          Acquire::AllowInsecureRepositories "true";
-          Acquire::https::Verify-Peer "false";
 
     - name: Update apt cache
       apt:
@@ -44,7 +37,6 @@
           - "kubeadm={{ kubeadm_version }}"
           - "kubectl={{ kubectl_version }}"
         state: present
-      args:
         allow_downgrade: yes
 
 
