@@ -8,9 +8,15 @@
 
   tasks:
     # 쿠버네티스 파트 시작
-    - name: Add Kubernetes apt key
+    - name: Download Kubernetes apt key
+      ansible.builtin.get_url:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        dest: /tmp/apt-key.gpg
+        mode: '0644'
+
+    - name: Add Kubernetes apt key to keyring
       ansible.builtin.command:
-        cmd: curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/kubernetes-archive-keyring.gpg
+        cmd: gpg --dearmor -o /usr/share/keyrings/kubernetes-archive-keyring.gpg /tmp/apt-key.gpg
       args:
         creates: /usr/share/keyrings/kubernetes-archive-keyring.gpg
 
