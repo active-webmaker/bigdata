@@ -101,7 +101,7 @@ pipeline {
                                 inventory: "${env.INVENTORY_FILE}",
                                 extraVars: [
                                     mysql_root_password: "$MYSQL_PW",
-                                    replication_password: "$REPL_PW"
+                                    replication_password: "$REPL_PW",
                                     airflow_password: "$AIR_PW"
                                 ]
                             )
