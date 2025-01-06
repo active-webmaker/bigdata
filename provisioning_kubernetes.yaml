@@ -8,36 +8,52 @@
 
   tasks:
     # 쿠버네티스 파트 시작
-    - name: Install apt-transport-https
+    - name: Update apt cache
       apt:
-        name: apt-transport-https
-        state: present
-      when: ansible_os_family == "Debian"
+        update_cache: yes
 
-    - name: Download gpg
-      apt_key:
-        url: https://apt.kubernetes.io/apt/doc/apt-key.gpg
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gpg
         state: present
-      when: ansible_os_family == "Debian"
 
-    - name: Add Kubernetes repository
+    - name: Create Directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Add Kubernetes GPG key
+      command: >
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key |
+        gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: Add Kubernetes apt repository
       copy:
         dest: /etc/apt/sources.list.d/kubernetes.list
         content: |
-          deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes jammy main
+          deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /
 
     - name: Update apt cache
       apt:
         update_cache: yes
 
-    - name: Install Kubernetes components
+    - name: Install Kubernetes
       apt:
         name:
-          - "kubelet={{ kubelet_version }}"
-          - "kubeadm={{ kubeadm_version }}"
-          - "kubectl={{ kubectl_version }}"
+          - kubelet={{ Kubelet_version }}
+          - kubeadm={{ Kubeadm_version }}
+          - kubectl={{ Kubectl_version }}
         state: present
-        allow_downgrade: yes
+
+    - name: Hold Kubernetes version
+      command: apt-mark hold kubelet kubeadm kubectl
 
 
 - name: Kubernetes init
