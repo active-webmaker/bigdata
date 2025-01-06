@@ -52,6 +52,8 @@
           - "docker-ce-cli={{ Docker_version }}"
           - "containerd.io={{ Containerd_version }}"
         state: present
+      args:
+        allow_downgrade: yes
 
     # 6. Docker 서비스 시작 및 활성화
     - name: Ensure Docker service is enabled and running

@@ -29,7 +29,8 @@
           - "kubeadm={{ kubeadm_version }}"
           - "kubectl={{ kubectl_version }}"
         state: present
-
+      args:
+        allow_downgrade: yes
 
 
 - name: Kubernetes init

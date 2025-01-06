@@ -40,6 +40,8 @@
       apt:
         name: "helm={{ helm_version }}"
         state: present
+      args:
+        allow_downgrade: yes
 
     # 6. 설치 확인
     - name: Verify Helm installation
