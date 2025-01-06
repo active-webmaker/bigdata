@@ -93,7 +93,7 @@ pipeline {
                     try {
                         withCredentials([
                             string(credentialsId: 'mysql_root_password', variable: 'MYSQL_PW'), 
-                            string(credentialsId: 'replication_password', variable: 'REPL_PW')
+                            string(credentialsId: 'replication_password', variable: 'REPL_PW'),
                             string(credentialsId: 'airflow_password', variable: 'AIR_PW')
                         ]) {
                             ansiblePlaybook(
