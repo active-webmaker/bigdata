@@ -2,7 +2,7 @@
   hosts: all
   become: true
   vars:
-    kubernetes_version: 1.30.8-1.1
+    kubernetes_version: "1.30.8~"
 
   tasks:
     # 쿠버네티스 파트 시작
@@ -36,6 +36,7 @@
     - name: Update apt cache
       apt:
         update_cache: yes
+        cache_valid_time: 3600
 
     - name: Install Kubernetes
       apt:
