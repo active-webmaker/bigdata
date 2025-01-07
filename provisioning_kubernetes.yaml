@@ -50,7 +50,6 @@
         state: present
       args:
         allow_downgrade: yes
-      notify: restart kubelet
 
     - name: Hold Kubernetes version
       command: apt-mark hold kubelet kubeadm kubectl
