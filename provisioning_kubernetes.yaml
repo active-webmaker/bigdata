@@ -20,17 +20,16 @@
         mode: '0755'
 
     - name: Add Kubernetes GPG key
-      apt_key:
-        url: https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key
-        dest: /usr/share/keyrings/kubernetes-apt-keyring.gpg # 키를 특정 위치에 저장
-        state: present
+      shell: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor --yes -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: chmod Kubernetes GPG key
+      shell: sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
     - name: Add Kubernetes apt repository
-      apt_repository:
-        repo: deb [signed-by=/usr/share/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /
-        state: present
-        filename: kubernetes
-        update_cache: yes
+      shell: echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+    - name: chmod Kubernetes apt repository
+      shell: sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
 
     - name: Update apt cache
       apt:

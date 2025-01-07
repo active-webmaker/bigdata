@@ -19,18 +19,11 @@
 
     # 2. Helm GPG key 추가
     - name: Add Helm's official GPG key
-      apt_key:
-        url: hhttps://baltocdn.com/helm/signing.asc
-        dest: /usr/share/keyrings/helm.gpg # 키를 특정 위치에 저장
-        state: present
+      shell: curl https://baltocdn.com/helm/signing.asc | gpg --dearmor --yes | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
 
     # 3. Helm apt 저장소 추가
     - name: Set up the Helm stable repository
-      apt_repository:
-        repo: deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main
-        state: present
-        filename: helm
-        update_cache: yes
+      shell: echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
 
     # 4. apt cache 업데이트
     - name: Update apt cache
