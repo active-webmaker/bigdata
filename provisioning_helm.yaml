@@ -30,7 +30,11 @@
       apt:
         update_cache: yes
 
-    # 5. Helm 설치하기
+    # 5. helm packages 홀드 해제
+    - name: Unhold helm packages
+      command: apt-mark unhold helm
+
+    # 6. Helm 설치하기
     - name: Install specific Helm version
       apt:
         name: helm={{ helm_version }}
@@ -38,9 +42,13 @@
       args:
         allow_downgrade: yes
 
-    # 6. 설치 확인
+    # 7. 설치 확인
     - name: Verify Helm installation
       command: helm version
       register: helm_version
       failed_when: "'version' not in helm_version.stdout"
       changed_when: false
+
+    # 8. helm packages 홀드 설정정
+    - name: Hold Helm version
+      command: apt-mark hold helm

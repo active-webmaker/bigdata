@@ -38,6 +38,9 @@
         update_cache: yes
         force_apt_get: yes
 
+    - name: Unhold Kubernetes packages
+      command: apt-mark unhold kubelet kubeadm kubectl
+
     - name: Install Kubernetes
       apt:
         name:
