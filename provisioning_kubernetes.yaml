@@ -2,7 +2,7 @@
   hosts: all
   become: true
   vars:
-    kubernetes_version: 1.30.8-00
+    kubernetes_version: 1.30.8-1.1
 
   tasks:
     # 쿠버네티스 파트 시작
