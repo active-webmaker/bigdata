@@ -2,7 +2,7 @@
   hosts: all
   become: true
   vars:
-    kubernetes_version: "1.30.7-1.1"
+    kubernetes_version: 1.30.7-1.1
 
   tasks:
     # 쿠버네티스 파트 시작
@@ -41,9 +41,9 @@
     - name: Install Kubernetes
       apt:
         name:
-          - kubelet="{{ kubernetes_version }}"
-          - kubeadm="{{ kubernetes_version }}"
-          - kubectl="{{ kubernetes_version }}"
+          - kubelet={{ kubernetes_version }}
+          - kubeadm={{ kubernetes_version }}
+          - kubectl={{ kubernetes_version }}
         state: present
       args:
         allow_downgrade: yes

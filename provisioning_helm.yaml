@@ -33,7 +33,7 @@
     # 5. Helm 설치하기
     - name: Install specific Helm version
       apt:
-        name: "helm={{ helm_version }}"
+        name: helm={{ helm_version }}
         state: present
       args:
         allow_downgrade: yes
