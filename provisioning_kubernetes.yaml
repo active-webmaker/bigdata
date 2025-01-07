@@ -4,10 +4,6 @@
 
   tasks:
     # 쿠버네티스 파트 시작
-    - name: Update apt cache
-      apt:
-        update_cache: yes
-
     - name: Install required packages
       apt:
         name:
@@ -24,10 +20,17 @@
         mode: '0755'
 
     - name: Add Kubernetes GPG key
-      shell: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      apt_key:
+        url: https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key
+        dest: /usr/share/keyrings/kubernetes-apt-keyring.gpg # 키를 특정 위치에 저장
+        state: present
 
     - name: Add Kubernetes apt repository
-      shell: echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+      apt_repository:
+        repo: deb [signed-by=/usr/share/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /
+        state: present
+        filename: kubernetes
+        update_cache: yes
 
     - name: Update apt cache
       apt:
@@ -61,6 +64,11 @@
     - name: init Kubernetes master node
       command: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-cert-extra-sans="{{ Master_node }}"
       register: kubeadm_init_output
+      when: not kubelet_conf_status.stat.exists
+
+    - name: Capture join command
+      set_fact:
+        join_command: "{{ kubeadm_init_output.stdout_lines | regex_search('kubeadm join .*') }}"
       when: not kubelet_conf_status.stat.exists
 
     - name: Save join command to a file
