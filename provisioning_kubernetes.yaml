@@ -63,18 +63,18 @@
       register: kubeadm_init_output
       when: not kubelet_conf_status.stat.exists
 
+    - name: Save join command to a file
+      local_action: # 로컬 머신에서 실행
+        module: copy
+        content: "{{ join_command }}"
+        dest: /tmp/kubeadm_join_command.txt 
+      when: not kubelet_conf_status.stat.exists
+
     - name: Set kubeconfig for root
       shell: |
         mkdir -p $HOME/.kube
         cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
         chown $(id -u):$(id -g) $HOME/.kube/config
-      when: not kubelet_conf_status.stat.exists
-
-    - name: Save join command to file
-      local_action:
-        module: copy
-        content: "{{ kubeadm_init_output.stdout | regex_search('kubeadm join.*') }}"
-        dest: ./join_command.sh
       when: not kubelet_conf_status.stat.exists
 
     - name: Apply Flannel CNI plugin
@@ -95,6 +95,13 @@
         path: /var/lib/kubelet/config.yaml
       register: kubelet_conf_yaml_status
 
+    - name: Read join command from the file
+      local_action: # 로컬 머신에서 파일 읽기
+        module: slurp
+        src: /tmp/kubeadm_join_command.txt
+      register: join_command_file
+      when: not kubelet_conf_yaml_status.stat.exists
+
     - name: Join Kubernetes worker node
-      shell: "bash ./join_command.sh"
+      shell: "{{ join_command_file['content'] }}"
       when: not kubelet_conf_yaml_status.stat.exists
