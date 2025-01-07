@@ -1,6 +1,8 @@
 - name: Kubernetes Install
   hosts: all
   become: true
+  vars:
+    kubernetes_version: 1.30.8-00
 
   tasks:
     # 쿠버네티스 파트 시작
@@ -38,10 +40,13 @@
     - name: Install Kubernetes
       apt:
         name:
-          - kubelet
-          - kubeadm
-          - kubectl
+          - kubelet="{{ kubernetes_version }}"
+          - kubeadm="{{ kubernetes_version }}"
+          - kubectl="{{ kubernetes_version }}"
         state: present
+      args:
+        allow_downgrade: yes
+      notify: restart kubelet
 
     - name: Hold Kubernetes version
       command: apt-mark hold kubelet kubeadm kubectl
@@ -61,7 +66,7 @@
       register: kubelet_conf_status
 
     - name: init Kubernetes master node
-      command: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-cert-extra-sans="{{ Master_node }}"
+      command: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-cert-extra-sans="{{ Master_node }}" --ignore-preflight-errors=NumCPU,Mem
       register: kubeadm_init_output
       when: not kubelet_conf_status.stat.exists
 
