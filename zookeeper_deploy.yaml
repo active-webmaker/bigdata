@@ -37,7 +37,7 @@
     zookeeper_image_name: BigTop:latest
     zookeeper_storage_size: 1Gi
 
-    pvc:
+    pvs:
       - name: zookeeper-pv-data-0
         size: 1Gi
         access_modes: ReadWriteOnce
