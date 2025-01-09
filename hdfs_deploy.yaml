@@ -19,7 +19,7 @@
         folder: "hdfs3"
         node: bigdata102
 
-  task:
+  tasks:
     - name: Ensure PV folders exist for each node
       file:
         path: "{{ item.path }}/{{ item.folder }}"
@@ -72,7 +72,7 @@
   
 
   tasks:
-    - name: Set airflow PersistentVolume
+    - name: Set HDFS PersistentVolume
       kubernetes.core.k8s:
         state: present
         definition:

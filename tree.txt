@@ -1,0 +1,43 @@
+Multidisk 볼륨에 대한 폴더 경로의 목록입니다.
+볼륨 일련 번호는 D40C-E3D1입니다.
+D:.
+|   airflow_deploy.yaml
+|   flask_deploy.yaml
+|   hdfs_deploy.yaml
+|   inventory.ini
+|   Jenkinsfile
+|   kafka_deploy.yaml
+|   LICENSE
+|   main_deploy.yaml
+|   main_provisioning.yaml
+|   mysql_deploy.yaml
+|   nginx_deploy.yaml
+|   prometheus_deploy.yaml
+|   prometheus_value.yaml
+|   provisioning_apt.yaml
+|   provisioning_helm.yaml
+|   provisioning_kubernetes.yaml
+|   spark_deploy.yaml
+|   tree.txt
+|   zookeeper_deploy.yaml
+|   
++---.vscode
+|       settings.json
+|       
++---Airflow
+|       Dockerfile
+|       entrypoint.sh
+|       
++---BigTop
+|       Dockerfile
+|       
++---Flask
+|       app.py
+|       Dockerfile
+|       
++---MySQL
+|       Dockerfile
+|       
+\---Nginx
+        Dockerfile
+        

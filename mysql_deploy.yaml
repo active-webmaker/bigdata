@@ -25,7 +25,7 @@
 
 
 
-- name: mysql deploy apply 
+- name: mysql deploy apply
   hosts: master
   become: true
   vars:

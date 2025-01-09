@@ -7,6 +7,14 @@
         folder: "prometheus"
         node: bigdata102
 
+      - path: "/mnt/block-storage3"
+        folder: "grafana"
+        node: bigdata102
+
+      - path: "/mnt/block-storage3"
+        folder: "alertmanager"
+        node: bigdata102
+
   tasks:
     - name: Ensure PV folders exist for each node
       file:
@@ -20,37 +28,87 @@
 
 
 
-- name: prometheus PV Create
+- name: prometheus PV-PVC Create
   hosts: master
   become: true
   vars:
-    prometheus_app_name: prometheus
-    prometheus_access_mode: ReadWriteOnce
-    pv_path: "/mnt/block-storage3"
-    pv_folder: "prometheus"
-    pv_node: bigdata102
+    mysql_app_name: mysql
+    mysql_replicas: 2
+    mysql_image_name: mysql:latest
+
+    pvs:
+      - name: prometheus
+        namespace: prometheus
+        size: 2Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage1"
+        folder: prometheus
+        node: master_node
+
+      - name: alertmanager
+        namespace: prometheus
+        size: 2Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage2"
+        folder: alertmanager
+        node: bigdata101
+
+      - name: grafana
+        namespace: prometheus
+        size: 2Gi
+        access_modes: ReadWriteOnce
+        path: "/mnt/block-storage3"
+        folder: grafana
+        node: bigdata102
+  
 
   tasks:
-    - name: Create PV for Prometheus
+    - name: Create Prometheus Namespace
+      kubernetes.core.k8s:
+        name: prometheus
+        api_version: v1
+        kind: Namespace
+        state: present
+  
+
+    - name: Set PersistentVolume
       kubernetes.core.k8s:
         state: present
         definition:
           apiVersion: v1
           kind: PersistentVolume
           metadata:
-            name: "{{ prometheus_app_name }}-pv"
+            name: "{{ item.name }}-pv"
           spec:
             capacity:
-              storage: 5Gi
+              storage: "{{ item.size }}"
             accessModes:
-              - "{{ prometheus_access_mode }}"
-            persistentVolumeReclaimPolicy: Retain # PV 삭제 시 데이터 유지
-            storageClassName: standard # 스토리지 클래스 이름
+              - "{{ item.access_modes }}"
+            persistentVolumeReclaimPolicy: Retain
             hostPath:
-              path: "{{ pv_path }}/{{ pv_folder }}"
+              path: "{{ item.path }}/{{ item.folder }}"
             nodeSelector:
-              kubernetes.io/hostname: "{{ pv_node }}"
+              kubernetes.io/hostname: "{{ item.node }}"
+      with_items: "{{ pvs }}"
 
+
+    - name: Set PVC
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: "{{ item.name }}-pvc"
+            namespace: "{{ item.namespace }}"
+          spec:
+            accessModes:
+              - "{{ item.access_modes }}"
+            resources:
+              requests:
+                storage: "{{ item.size }}"
+            volumeName: "{{ item.name }}"
+      with_items: "{{ pvs }}"
 
 
 - name: Install and Deploy Prometheus Operator
@@ -70,30 +128,6 @@
       kubernetes.core.helm:
         name: prometheus-operator
         chart_ref: prometheus-community/kube-prometheus-stack
-        release_namespace: monitoring
+        release_namespace: prometheus
         create_namespace: true
         values: "{{ lookup('file', 'prometheus_values.yaml') | from_yaml }}"
-
-    # 3. Node Exporter 배포
-    - name: Install Node Exporter using Helm
-      kubernetes.core.helm:
-        name: node-exporter
-        chart_ref: prometheus-community/prometheus-node-exporter
-        release_namespace: monitoring
-        create_namespace: true
-        values: "{{ lookup('file', 'node_exporter_values.yaml') | from_yaml }}"
-
-    # 4. Prometheus 배포
-    - name: install Prometheus
-      kubernetes.core.helm:
-        name: prometheus
-        chart_ref: prometheus-community/prometheus
-        release_namespace: monitoring
-        values:
-          # Prometheus 설정 값
-          server:
-            persistentVolume:
-              enabled: true
-              size: 5Gi
-              existingClaim: prometheus-pv # 기존 PV 이름 지정
-        update_repo: true
